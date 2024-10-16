@@ -5,28 +5,28 @@ from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
 
-# Модель для чата
+# Модели базы данных
 class Chat(Base):
     __tablename__ = 'chats'
     id = Column(Integer, primary_key=True)
     chat_id = Column(Integer, unique=True)
 
-# Модель для группы
+
 class Group(Base):
     __tablename__ = 'groups'
     id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True)
+    name = Column(String)
     message = Column(String, nullable=True)
-    chance = Column(Float, default=0.0)
+    chance = Column(Integer, default=100)  # Шанс ответа в процентах
     chat_id = Column(Integer, ForeignKey('chats.id'))
-    chat = relationship("Chat", back_populates="groups")
     members = relationship("GroupMember", back_populates="group")
 
-# Модель для участников группы
+
 class GroupMember(Base):
     __tablename__ = 'group_members'
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer)
+    username = Column(String, nullable=True)  # Поле для хранения username
     group_id = Column(Integer, ForeignKey('groups.id'))
     group = relationship("Group", back_populates="members")
 

@@ -25,7 +25,31 @@ def admin_only(func):
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
 
+# Настройка базы данных
+Base = declarative_base()
+engine = create_async_engine('sqlite+aiosqlite:///bot.db')
+async_sessionmaker = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
+
+# Создание таблиц базы данных
+async def create_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+# Декоратор для проверки прав администратора
+def admin_only(func):
+    @wraps(func)
+    async def wrapper(message: types.Message, *args, **kwargs):
+        if message.from_user.id not in ADMINS:
+            await message.reply("У вас нет прав для использования этой команды.")
+            return
+        return await func(message, *args, **kwargs)
+
+    return wrapper
+
+
+# Команда /start
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
     await message.reply(
@@ -34,6 +58,7 @@ async def start(message: types.Message):
     )
 
 
+# Команда /help
 @dp.message_handler(commands=['help'])
 async def help_command(message: types.Message):
     await message.reply(
@@ -48,12 +73,11 @@ async def help_command(message: types.Message):
         "    set_message - задать сообщение для группы\n"
         "    set_chance - задать вероятность ответа группы\n"
         "\n"
-        "Только администраторы могут управлять группами.\n"
-        "Для подробной информации по каждой команде используйте соответствующую документацию."
+        "Только администраторы могут управлять группами."
     )
 
 
-# Команда /register для добавления чата в базу данных
+# Команда /register - регистрация чата
 @dp.message_handler(commands=['register'])
 @admin_only
 async def register_chat(message: types.Message):
@@ -71,7 +95,7 @@ async def register_chat(message: types.Message):
                 await message.reply("Чат уже зарегистрирован.")
 
 
-# Команда для управления группами
+# Команда /group для управления группами
 @dp.message_handler(commands=['group'])
 @admin_only
 async def manage_group(message: types.Message):
@@ -109,7 +133,7 @@ async def manage_group(message: types.Message):
                 if group:
                     await session.delete(group)
                     await session.commit()
-                    await message.reply(f"Группа {group_name} удалена.")
+                    await message.reply(f"Группа {group_name} успешно удалена.")
                 else:
                     await message.reply("Группа не найдена.")
 
@@ -117,10 +141,21 @@ async def manage_group(message: types.Message):
                 if group:
                     if message.reply_to_message:
                         user_id = message.reply_to_message.from_user.id
-                        member = GroupMember(user_id=user_id, group_id=group.id)
-                        session.add(member)
+                        username = message.reply_to_message.from_user.username  # Получаем username
+
+                        # Проверяем, существует ли уже этот участник
+                        member_result = await session.execute(
+                            select(GroupMember).filter_by(user_id=user_id, group_id=group.id))
+                        member = member_result.scalars().first()
+
+                        if member:
+                            member.username = username  # Обновляем username
+                        else:
+                            member = GroupMember(user_id=user_id, username=username, group_id=group.id)
+                            session.add(member)
+
                         await session.commit()
-                        await message.reply(f"Пользователь добавлен в группу {group_name}.")
+                        await message.reply(f"Пользователь @{username or 'неизвестен'} добавлен в группу {group_name}.")
                     else:
                         await message.reply("Эта команда должна быть ответом на сообщение пользователя.")
                 else:
@@ -130,13 +165,15 @@ async def manage_group(message: types.Message):
                 if group:
                     if message.reply_to_message:
                         user_id = message.reply_to_message.from_user.id
+
                         member_result = await session.execute(
                             select(GroupMember).filter_by(user_id=user_id, group_id=group.id))
                         member = member_result.scalars().first()
+
                         if member:
                             await session.delete(member)
                             await session.commit()
-                            await message.reply(f"Пользователь удалён из группы {group_name}.")
+                            await message.reply(f"Пользователь удален из группы {group_name}.")
                         else:
                             await message.reply("Пользователь не найден в группе.")
                     else:
@@ -148,40 +185,49 @@ async def manage_group(message: types.Message):
                 if group:
                     members_result = await session.execute(select(GroupMember).filter_by(group_id=group.id))
                     members = members_result.scalars().all()
-                    member_list = ', '.join([str(member.user_id) for member in members])
-                    response = f"Группа {group_name}:\nУчастники: {member_list or 'нет участников'}\nСообщение: {group.message or 'не установлено'}\nШанс ответа: {group.chance * 100}%"
-                    await message.reply(response)
+
+                    # Создаем список кликабельных пользователей
+                    member_list = ', '.join([
+                                                f"@{member.username}" if member.username else f"[User ID: {member.user_id}](tg://user?id={member.user_id})"
+                                                for member in members])
+
+                    response = (f"Группа {group_name}:\n"
+                                f"Участники: {member_list or 'нет участников'}\n"
+                                f"Сообщение: {group.message or 'не установлено'}\n"
+                                f"Шанс ответа: {group.chance}%")
+                    await message.reply(response, parse_mode=ParseMode.MARKDOWN)
                 else:
                     await message.reply("Группа не найдена.")
 
-            elif action == 'set_message' and len(args) > 2:
-                if group:
-                    group.message = ' '.join(args[2:])
-                    await session.commit()
-                    await message.reply(f"Сообщение для группы {group_name} установлено.")
-                else:
-                    await message.reply("Группа не найдена.")
+            elif action == 'set_message':
+                if len(args) < 3:
+                    await message.reply("Укажите сообщение для группы.")
+                    return
 
-            elif action == 'set_chance' and len(args) == 3:
-                if group:
-                    try:
-                        chance = float(args[2])
-                        if 0 <= chance <= 1:
-                            group.chance = chance
-                            await session.commit()
-                            await message.reply(f"Шанс для группы {group_name} установлен на {chance * 100}%.")
-                        else:
-                            await message.reply("Шанс должен быть от 0 до 1.")
-                    except ValueError:
-                        await message.reply("Неверный формат шанса.")
-                else:
-                    await message.reply("Группа не найдена.")
+                group_message = ' '.join(args[2:])
+                group.message = group_message
+                await session.commit()
+                await message.reply(f"Сообщение для группы {group_name} успешно обновлено.")
+
+            elif action == 'set_chance':
+                if len(args) < 3 or not args[2].isdigit():
+                    await message.reply("Укажите шанс в процентах.")
+                    return
+
+                chance = int(args[2])
+                group.chance = chance
+                await session.commit()
+                await message.reply(f"Шанс для группы {group_name} успешно обновлен до {chance}%.")
+            else:
+                await message.reply(
+                    "Неверное действие. Используйте create, remove, add, del, show, set_message или set_chance.")
 
 
-# Функция для проверки сообщений и ответов
+# Обновление username каждого пользователя при получении сообщения
 @dp.message_handler()
 async def check_message(message: types.Message):
     user_id = message.from_user.id
+    username = message.from_user.username
     chat_id = message.chat.id
 
     async with async_sessionmaker() as session:
@@ -195,13 +241,27 @@ async def check_message(message: types.Message):
                 groups = group_results.scalars().all()
 
                 for group in groups:
-                    if group.chance > random.random():
+                    # Обновляем username пользователя в базе
+                    member_result = await session.execute(
+                        select(GroupMember).filter_by(user_id=user_id, group_id=group.id))
+                    member = member_result.scalars().first()
+
+                    if member and member.username != username:
+                        member.username = username
+                        await session.commit()
+
+                    if group.chance > random.random() * 100:
                         await message.reply(group.message)
 
 
+# Запуск бота
 if __name__ == '__main__':
+    from aiogram import executor
     import asyncio
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(init_db())
-    executor.start_polling(dp, skip_updates=True)
+
+    async def on_startup(dp):
+        await create_db()
+
+
+    executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
