@@ -107,7 +107,7 @@ async def manage_group(message: types.Message):
         return
 
     action = args[0]
-    group_identifier = ' '.join(args[1:])  # Объединяем оставшиеся аргументы для названия группы
+    group_identifier = ' '.join(args[1])  # Объединяем оставшиеся аргументы для названия группы
 
     async with async_sessionmaker() as session:
         async with session.begin():
@@ -119,6 +119,7 @@ async def manage_group(message: types.Message):
                 return
 
             # Проверка, является ли идентификатор числом (ID группы)
+            print(group_identifier)
             if group_identifier.isdigit():
                 group_result = await session.execute(select(Group).filter_by(id=int(group_identifier), chat_id=chat.id))
             else:
@@ -222,6 +223,7 @@ async def manage_group(message: types.Message):
                     await message.reply("Группа не найдена.")
 
             elif action == 'show':
+                print(group)
                 if group:
                     members_result = await session.execute(select(GroupMember).filter_by(group_id=group.id))
                     members = members_result.scalars().all()
@@ -255,7 +257,7 @@ async def manage_group(message: types.Message):
 
                     member_count = len(members)
 
-                    msg = f"Информация о группе *{group.name}* (ID: {group.id}):\n" + f"Количество участников: {member_count}\n" + f"Участники: {', '.join(member_list) if member_list else 'Нет участников.'}"
+                    msg = f"Информация о группе *{group.name}* (ID: {group.id}):\n" + f"Количество участников: {member_count}\n" + f"Участники: {', '.join(member_list) if member_list else 'Нет участников.'}\n" + f"Шанс ответа на сообщение: {group.chance}%\n" + f"Сообшение которым ответит: {group.message}"
 
                     await message.reply(
                         msg,
