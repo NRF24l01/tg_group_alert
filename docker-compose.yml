@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  bot:
+  tg_alert_bot:
     build: .
-    container_name: telegram_bot
+    container_name: tg_alert_bot
     volumes:
       - ./bot.db:/app/bot.db
