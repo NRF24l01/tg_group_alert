@@ -286,7 +286,7 @@ async def manage_group(message: types.Message):
 
 
 # Команда /group list - показать все группы в чате
-@dp.message_handler(commands=['group', 'list'])
+@dp.message_handler(lambda message: message.text.startswith('/group list'))
 @admin_only
 async def list_groups(message: types.Message):
     async with async_sessionmaker() as session:
