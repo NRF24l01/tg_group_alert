@@ -1,8 +1,9 @@
-version: '3.8'
-
 services:
   tg_alert_bot:
     build: .
     container_name: tg_alert_bot
     volumes:
-      - ./bot.db:/app/bot.db
+      - bot_data:/app/bot.db
+
+volumes:
+  bot_data:
