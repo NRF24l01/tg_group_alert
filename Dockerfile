@@ -21,4 +21,4 @@ COPY . .
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["bash", "-c", "alembic upgrade head && python bot.py"]
+CMD ["bash", "start.sh"]

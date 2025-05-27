@@ -302,8 +302,10 @@ async def list_groups(message: types.Message):
             groups = group_results.scalars().all()
 
             if groups:
-                group_list = [f"ID: {group.id}, Название: {group.name}, Участников: {len(group.members)}" for group in
-                              groups]
+                group_list = [
+                    f"ID: {group.id}, Название: {group.name}, Участников: {len(group.members)}"
+                    for group in groups
+                ]
                 await message.reply("Список групп:\n" + "\n".join(group_list))
             else:
                 await message.reply("Группы не найдены.")

@@ -2,6 +2,8 @@ services:
   tg_alert_bot:
     build: .
     container_name: tg_alert_bot
+    env_file:
+      - .env
     volumes:
       - bot_data:/app
 
