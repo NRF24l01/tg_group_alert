@@ -15,8 +15,5 @@ WORKDIR /app
 # Устанавливаем зависимости из requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Выполняем миграции alembic
-RUN alembic upgrade head
-
 # Команда запуска бота
-CMD ["python", "bot.py"]
+CMD ["bash", "-c", "alembic upgrade head && python main.py"]
