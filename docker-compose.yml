@@ -3,7 +3,7 @@ services:
     build: .
     container_name: tg_alert_bot
     volumes:
-      - bot_data:/app/bot.db
+      - bot_data:/app
 
 volumes:
   bot_data:

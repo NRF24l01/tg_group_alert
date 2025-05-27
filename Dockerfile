@@ -6,10 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Устанавливаем зависимости системы
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     gcc libpq-dev \
+#     && apt-get clean \
+#     && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
@@ -21,4 +21,4 @@ COPY . .
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["bash", "-c", "alembic upgrade head && python main.py"]
+CMD ["bash", "-c", "alembic upgrade head && python bot.py"]
